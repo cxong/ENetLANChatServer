@@ -1,0 +1,17 @@
+project(ENetLANChatServer C)
+cmake_minimum_required(VERSION 2.8)
+
+SET(ENet_LIBRARY enet)
+IF(WIN32)
+    SET(WINDOWS_ENET_DEPENDENCIES "ws2_32;winmm")
+    SET(ENet_LIBRARIES ${ENet_LIBRARY} ${WINDOWS_ENET_DEPENDENCIES})
+ELSE()
+    SET(ENet_LIBRARIES ${ENet_LIBRARY})
+ENDIF()
+INCLUDE_DIRECTORIES(enet/include)
+ADD_SUBDIRECTORY(enet)
+
+add_executable(server server.c)
+target_link_libraries(server ${ENet_LIBRARIES})
+add_executable(client client.c)
+target_link_libraries(client ${ENet_LIBRARIES})
