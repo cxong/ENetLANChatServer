@@ -4,6 +4,11 @@
 #include <enet/enet.h>
 
 
+// Simple LAN chat server
+// Clients can send simple string messages to the server, which simply
+// gets broadcast to all connected clients.
+
+
 ENetHost *host;
 #define MAX_CLIENTS 16
 
@@ -20,6 +25,13 @@ void sigint_handle(int signum)
 #include <unistd.h>
 #define Sleep(x) usleep((x)*1000)
 #endif
+
+void send_string(ENetHost *host, char *s)
+{
+	ENetPacket *packet = enet_packet_create(
+		s, strlen(s) + 1, ENET_PACKET_FLAG_RELIABLE);
+	enet_host_broadcast(host, 0, packet);
+}
 
 
 int main(int argc, char *argv[])
@@ -53,18 +65,25 @@ int main(int argc, char *argv[])
 		if (check > 0)
 		{
 			char buf[256];
+			// Whenever a client connects or disconnects, broadcast a message
+			// Whenever a client says something, broadcast it including
+			// which client it was from
 			switch (event.type)
 			{
 				case ENET_EVENT_TYPE_CONNECT:
-					enet_address_get_host_ip(&event.peer->address, buf, sizeof buf);
-					printf("New connection from %s\n", buf);
+					sprintf(buf, "New client connected: id %d", event.peer->incomingPeerID);
+					send_string(host, buf);
+					printf("%s\n", buf);
 					break;
 				case ENET_EVENT_TYPE_RECEIVE:
-					printf("Received data '%s'\n", event.packet->data);
+					sprintf(buf, "Client %d says: %s", event.peer->incomingPeerID, event.packet->data);
+					send_string(host, buf);
+					printf("%s\n", buf);
 					break;
 				case ENET_EVENT_TYPE_DISCONNECT:
-					enet_address_get_host_ip(&event.peer->address, buf, sizeof buf);
-					printf("Client disconnected %s\n", buf);
+					sprintf(buf, "Client %d disconnected", event.peer->incomingPeerID);
+					send_string(host, buf);
+					printf("%s\n", buf);
 					break;
 				default:
 					break;

@@ -1,6 +1,12 @@
 #include <stdio.h>
 
 #include <enet/enet.h>
+#include "rlutil.h"
+
+
+// Simple LAN chat client
+// The client sends string messages to the server, and the server passes
+// them on to all clients
 
 
 ENetHost *host;
@@ -57,9 +63,59 @@ int main(int argc, char *argv[])
 
 	// Send a greeting
 	send_string(peer, "Hello, my name is Inigo Montoya");
-	enet_host_service(host, &event, 0);
 
-	// TODO: event/input loop
+	memset(buf, 0, sizeof buf);
+	int check;
+	do
+	{
+		Sleep(1);
+		const int k = nb_getch();
+		if (k == KEY_ENTER || k == '\r')
+		{
+			// Exit the client on text command
+			if (strcmp(buf, "quit") == 0 || strcmp(buf, "exit") == 0)
+			{
+				break;
+			}
+			// If we have something to say, say it to the server
+			if (strlen(buf) > 0)
+			{
+				send_string(peer, buf);
+			}
+			memset(buf, 0, sizeof buf);
+			printf("\n");
+		}
+		else if (k > 0 && strlen(buf) < 255)
+		{
+			// Hold on to our message until we press enter
+			buf[strlen(buf)] = (char)k;
+			printf("%c", k);
+		}
+
+		// Check for new messages from the server; if there are any
+		// just print them out
+		ENetEvent event;
+		check = enet_host_service(host, &event, 0);
+		if (check > 0)
+		{
+			switch (event.type)
+			{
+			case ENET_EVENT_TYPE_RECEIVE:
+				printf("%s\n", event.packet->data);
+				break;
+			case ENET_EVENT_TYPE_DISCONNECT:
+				printf("Lost connection with server\n");
+				break;
+			default:
+				break;
+			}
+		}
+		else if (check < 0)
+		{
+			fprintf(stderr, "Error servicing host\n");
+		}
+	}
+	while (check >= 0);
 
 	// Shut down client
 	printf("Client closing\n");

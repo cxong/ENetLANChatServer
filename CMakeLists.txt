@@ -13,5 +13,5 @@ ADD_SUBDIRECTORY(enet)
 
 add_executable(server server.c)
 target_link_libraries(server ${ENet_LIBRARIES})
-add_executable(client client.c)
+add_executable(client client.c rlutil.h)
 target_link_libraries(client ${ENet_LIBRARIES})
