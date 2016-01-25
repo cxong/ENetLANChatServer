@@ -1,6 +1,7 @@
 #include <stdio.h>
 
 #include <enet/enet.h>
+#include "common.h"
 #include "rlutil.h"
 
 
@@ -96,6 +97,35 @@ ENetHost *start_client(ENetPeer **peer)
 		fprintf(stderr, "An error occurred while initializing ENet\n");
 		return NULL;
 	}
+
+	// Scan for server on LAN
+	ENetSocket scanner = enet_socket_create(ENET_SOCKET_TYPE_DATAGRAM);
+	if (enet_socket_set_option(scanner, ENET_SOCKOPT_BROADCAST, 1) != 0)
+	{
+		fprintf(stderr, "Failed to enable broadcast socket\n");
+		return NULL;
+	}
+	ENetAddress scanaddr;
+	scanaddr.host = ENET_HOST_BROADCAST;
+	scanaddr.port = LISTEN_PORT;
+	// Send a payload
+	int data = 42;
+	ENetBuffer sendbuf;
+	sendbuf.data = &data;
+	sendbuf.dataLength = sizeof data;
+	if (enet_socket_send(scanner, &scanaddr, &sendbuf, 1) != (int)sendbuf.dataLength)
+	{
+		fprintf(stderr, "Failed to scan for LAN server\n");
+		return NULL;
+	}
+	// TODO: wait for the reply, which will give us the server address
+	if (enet_socket_shutdown(scanner, ENET_SOCKET_SHUTDOWN_READ_WRITE) != 0)
+	{
+		fprintf(stderr, "Failed to shutdown listen socket\n");
+		return NULL;
+	}
+	enet_socket_destroy(scanner);
+
 	ENetHost *host = enet_host_create(NULL, 1, 2, 0, 0);
 	if (host == NULL)
 	{
