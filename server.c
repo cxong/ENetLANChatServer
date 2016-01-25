@@ -9,52 +9,33 @@
 // gets broadcast to all connected clients.
 
 
-ENetHost *host;
-#define MAX_CLIENTS 16
-
-// Stop server on interrupt
-volatile sig_atomic_t stop = 0;
-void sigint_handle(int signum)
-{
-	stop = 1;
-}
-
 #ifdef _WINDOWS
 #include <windows.h>
 #else
 #include <unistd.h>
 #define Sleep(x) usleep((x)*1000)
 #endif
-
-void send_string(ENetHost *host, char *s)
-{
-	ENetPacket *packet = enet_packet_create(
-		s, strlen(s) + 1, ENET_PACKET_FLAG_RELIABLE);
-	enet_host_broadcast(host, 0, packet);
-}
+volatile sig_atomic_t stop = 0;
+void sigint_handle(int signum);
+ENetHost *start_server(void);
+void send_string(ENetHost *host, char *s);
+void stop_server(ENetHost *host);
+#define MAX_CLIENTS 16
 
 
 int main(int argc, char *argv[])
 {
+	(void)argc;
+	(void)argv;
+	// Stop server on interrupt
 	signal(SIGINT, sigint_handle);
 
 	// Start server
-	if (enet_initialize() != 0)
-	{
-		fprintf(stderr, "An error occurred while initializing ENet\n");
-		return 1;
-	}
-	ENetAddress addr;
-	addr.host = ENET_HOST_ANY;
-	// TODO: select random available port
-	addr.port = 34567;
-	host = enet_host_create(&addr, MAX_CLIENTS, 2, 0, 0);
+	ENetHost *host = start_server();
 	if (host == NULL)
 	{
-		fprintf(stderr, "Failed to open ENet host\n");
 		return 1;
 	}
-	printf("ENet host started on port %d (press ctrl-C to exit)\n", addr.port);
 
 	// Loop and process events
 	int check;
@@ -93,13 +74,59 @@ int main(int argc, char *argv[])
 		{
 			fprintf(stderr, "Error servicing host\n");
 		}
+		// Sleep a bit so we don't consume 100% CPU
 		Sleep(1);
 	}
 	while (!stop && check >= 0);
 
 	// Shut down server
+	stop_server(host);
+	return 0;
+}
+
+void sigint_handle(int signum)
+{
+	if (signum == SIGINT)
+	{
+		stop = 1;
+	}
+}
+
+ENetHost *start_server(void)
+{
+	ENetHost *host;
+
+	// Start server
+	if (enet_initialize() != 0)
+	{
+		fprintf(stderr, "An error occurred while initializing ENet\n");
+		return NULL;
+	}
+	ENetAddress addr;
+	addr.host = ENET_HOST_ANY;
+	// This selects random available port
+	addr.port = 0;
+	host = enet_host_create(&addr, MAX_CLIENTS, 2, 0, 0);
+	if (host == NULL)
+	{
+		fprintf(stderr, "Failed to open ENet host\n");
+		return NULL;
+	}
+	printf("ENet host started on port %d (press ctrl-C to exit)\n", host->address.port);
+
+	return host;
+}
+
+void send_string(ENetHost *host, char *s)
+{
+	ENetPacket *packet = enet_packet_create(
+		s, strlen(s) + 1, ENET_PACKET_FLAG_RELIABLE);
+	enet_host_broadcast(host, 0, packet);
+}
+
+void stop_server(ENetHost *host)
+{
 	printf("Server closing\n");
 	enet_host_destroy(host);
 	enet_deinitialize();
-	return 0;
 }

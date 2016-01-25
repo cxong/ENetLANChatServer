@@ -1,6 +1,10 @@
 project(ENetLANChatServer C)
 cmake_minimum_required(VERSION 2.8)
 
+if(MSVC)
+	ADD_DEFINITIONS(-W4 -WX -wd"4996" -wd"4204")
+ENDIF()
+
 SET(ENet_LIBRARY enet)
 IF(WIN32)
     SET(WINDOWS_ENET_DEPENDENCIES "ws2_32;winmm")
