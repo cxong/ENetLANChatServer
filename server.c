@@ -27,6 +27,7 @@ typedef struct
 	ENetSocket listen;
 } ENetLANServer;
 bool start_server(ENetLANServer *server);
+void listen_for_clients(ENetLANServer *server);
 void send_string(ENetHost *host, char *s);
 void stop_server(ENetLANServer *server);
 #define MAX_CLIENTS 16
@@ -51,33 +52,7 @@ int main(int argc, char *argv[])
 	do
 	{
 		// Check our listening socket for scanning clients
-		ENetSocketSet set;
-		ENET_SOCKETSET_EMPTY(set);
-		ENET_SOCKETSET_ADD(set, server.listen);
-		if (enet_socketset_select(server.listen, &set, NULL, 0))
-		{
-			ENetAddress recvaddr;
-			char buf[256];
-			ENetBuffer recvbuf;
-			recvbuf.data = buf;
-			recvbuf.dataLength = sizeof buf;
-			const int recvlen = enet_socket_receive(server.listen, &recvaddr, &recvbuf, 1);
-			if (recvlen > 0)
-			{
-				char addrbuf[256];
-				enet_address_get_host_ip(&recvaddr, addrbuf, sizeof addrbuf);
-				printf("Listen port: received (%d) from %s:%d\n",
-					*(int *)recvbuf.data, addrbuf, recvaddr.port);
-				// Reply to scanner client with the port of the server host
-				recvbuf.data = &server.host->address.port;
-				recvbuf.dataLength = sizeof server.host->address.port;
-				if (enet_socket_send(server.listen, &recvaddr, &recvbuf, 1) != (int)recvbuf.dataLength)
-				{
-					fprintf(stderr, "Failed to reply to scanner\n");
-					return NULL;
-				}
-			}
-		}
+		listen_for_clients(&server);
 
 		ENetEvent event;
 		check = enet_host_service(server.host, &event, 0);
@@ -169,6 +144,40 @@ bool start_server(ENetLANServer *server)
 		server->host->address.port);
 
 	return true;
+}
+
+void listen_for_clients(ENetLANServer *server)
+{
+	// Check for data to recv
+	ENetSocketSet set;
+	ENET_SOCKETSET_EMPTY(set);
+	ENET_SOCKETSET_ADD(set, server->listen);
+	if (enet_socketset_select(server->listen, &set, NULL, 0) <= 0)
+	{
+		return;
+	}
+
+	ENetAddress recvaddr;
+	char buf;
+	ENetBuffer recvbuf;
+	recvbuf.data = &buf;
+	recvbuf.dataLength = 1;
+	const int recvlen = enet_socket_receive(server->listen, &recvaddr, &recvbuf, 1);
+	if (recvlen <= 0)
+	{
+		return;
+	}
+	char addrbuf[256];
+	enet_address_get_host_ip(&recvaddr, addrbuf, sizeof addrbuf);
+	printf("Listen port: received (%d) from %s:%d\n",
+		*(char *)recvbuf.data, addrbuf, recvaddr.port);
+	// Reply to scanner client with the port of the server host
+	recvbuf.data = &server->host->address.port;
+	recvbuf.dataLength = sizeof server->host->address.port;
+	if (enet_socket_send(server->listen, &recvaddr, &recvbuf, 1) != (int)recvbuf.dataLength)
+	{
+		fprintf(stderr, "Failed to reply to scanner\n");
+	}
 }
 
 void send_string(ENetHost *host, char *s)

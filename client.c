@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include <stdio.h>
 
 #include <enet/enet.h>
@@ -9,7 +10,7 @@
 // The client sends string messages to the server, and the server passes
 // them on to all clients
 
-ENetHost *start_client(ENetPeer **peer);
+ENetHost *start_client(ENetPeer **peer, const int timeout_seconds);
 void send_string(ENetPeer *peer, char *s);
 void stop_client(ENetHost *host, ENetPeer *peer);
 #define CONNECTION_WAIT_MS 5000
@@ -22,7 +23,7 @@ int main(int argc, char *argv[])
 	(void)argv;
 	// Start client
 	ENetPeer *peer;
-	ENetHost *host = start_client(&peer);
+	ENetHost *host = start_client(&peer, 5);
 	if (host == NULL)
 	{
 		return 1;
@@ -91,7 +92,7 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
-ENetHost *start_client(ENetPeer **peer)
+ENetHost *start_client(ENetPeer **peer, const int timeout_seconds)
 {
 	if (enet_initialize() != 0)
 	{
@@ -109,44 +110,59 @@ ENetHost *start_client(ENetPeer **peer)
 	ENetAddress scanaddr;
 	scanaddr.host = ENET_HOST_BROADCAST;
 	scanaddr.port = LISTEN_PORT;
-	// Send a payload
-	int data = 42;
+	// Send a dummy payload
+	char data = 42;
 	ENetBuffer sendbuf;
 	sendbuf.data = &data;
-	sendbuf.dataLength = sizeof data;
+	sendbuf.dataLength = 1;
 	if (enet_socket_send(scanner, &scanaddr, &sendbuf, 1) != (int)sendbuf.dataLength)
 	{
 		fprintf(stderr, "Failed to scan for LAN server\n");
 		return NULL;
 	}
 	// Wait for the reply, which will give us the server address
-	int recvlen;
 	ENetAddress addr;
-	do
+	bool found = false;
+	for (int i = 0; i < timeout_seconds; i++)
 	{
-		char buf[256];
-		ENetBuffer recvbuf;
-		recvbuf.data = buf;
-		recvbuf.dataLength = sizeof buf;
-		recvlen = enet_socket_receive(scanner, &addr, &recvbuf, 1);
-		if (recvlen > 0)
+		printf("Scanning for server...\n");
+		ENetSocketSet set;
+		ENET_SOCKETSET_EMPTY(set);
+		ENET_SOCKETSET_ADD(set, scanner);
+		if (enet_socketset_select(scanner, &set, NULL, 0) > 0)
 		{
-			if (recvlen != sizeof(enet_uint16))
+			char buf[256];
+			ENetBuffer recvbuf;
+			recvbuf.data = buf;
+			recvbuf.dataLength = sizeof buf;
+			const int recvlen = enet_socket_receive(scanner, &addr, &recvbuf, 1);
+			if (recvlen > 0)
 			{
-				fprintf(stderr, "Unexpected reply from scan\n");
-				return NULL;
+				if (recvlen != sizeof(enet_uint16))
+				{
+					fprintf(stderr, "Unexpected reply from scan\n");
+					return NULL;
+				}
+				addr.port = *(enet_uint16 *)buf;
+				enet_address_get_host_ip(&addr, buf, sizeof buf);
+				printf("Found server at %s:%d\n", buf, addr.port);
+				found = true;
+				break;
 			}
-			addr.port = *(enet_uint16 *)buf;
-			enet_address_get_host_ip(&addr, buf, sizeof buf);
-			printf("Found server at %s:%d\n", buf, addr.port);
 		}
-	} while (recvlen == 0);
+		Sleep(1000);
+	}
 	if (enet_socket_shutdown(scanner, ENET_SOCKET_SHUTDOWN_READ_WRITE) != 0)
 	{
 		fprintf(stderr, "Failed to shutdown listen socket\n");
 		return NULL;
 	}
 	enet_socket_destroy(scanner);
+	if (!found)
+	{
+		fprintf(stderr, "Server not found\n");
+		return NULL;
+	}
 
 	ENetHost *host = enet_host_create(NULL, 1, 2, 0, 0);
 	if (host == NULL)
