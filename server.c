@@ -51,27 +51,31 @@ int main(int argc, char *argv[])
 	do
 	{
 		// Check our listening socket for scanning clients
-		ENetAddress recvaddr;
-		char buf[256];
-		ENetBuffer recvbuf;
-		recvbuf.data = buf;
-		recvbuf.dataLength = sizeof buf;
-		const int recvlen = enet_socket_receive(server.listen, &recvaddr, &recvbuf, 1);
-		if (recvlen > 0)
+		ENetSocketSet set;
+		ENET_SOCKETSET_EMPTY(set);
+		ENET_SOCKETSET_ADD(set, server.listen);
+		if (enet_socketset_select(server.listen, &set, NULL, 0))
 		{
-			char addrbuf[256];
-			enet_address_get_host_ip(&recvaddr, addrbuf, sizeof addrbuf);
-			printf("Listen port: received (%d) from %s:%d\n",
-				*(int *)recvbuf.data, addrbuf, recvaddr.port);
-			// Reply to scanner client
-			// TODO: send the port of the server host
-			int data = 12345;
-			recvbuf.data = &data;
-			recvbuf.dataLength = sizeof data;
-			if (enet_socket_send(server.listen, &recvaddr, &recvbuf, 1) != (int)recvbuf.dataLength)
+			ENetAddress recvaddr;
+			char buf[256];
+			ENetBuffer recvbuf;
+			recvbuf.data = buf;
+			recvbuf.dataLength = sizeof buf;
+			const int recvlen = enet_socket_receive(server.listen, &recvaddr, &recvbuf, 1);
+			if (recvlen > 0)
 			{
-				fprintf(stderr, "Failed to reply to scanner\n");
-				return NULL;
+				char addrbuf[256];
+				enet_address_get_host_ip(&recvaddr, addrbuf, sizeof addrbuf);
+				printf("Listen port: received (%d) from %s:%d\n",
+					*(int *)recvbuf.data, addrbuf, recvaddr.port);
+				// Reply to scanner client with the port of the server host
+				recvbuf.data = &server.host->address.port;
+				recvbuf.dataLength = sizeof server.host->address.port;
+				if (enet_socket_send(server.listen, &recvaddr, &recvbuf, 1) != (int)recvbuf.dataLength)
+				{
+					fprintf(stderr, "Failed to reply to scanner\n");
+					return NULL;
+				}
 			}
 		}
 
@@ -82,6 +86,7 @@ int main(int argc, char *argv[])
 			// Whenever a client connects or disconnects, broadcast a message
 			// Whenever a client says something, broadcast it including
 			// which client it was from
+			char buf[256];
 			switch (event.type)
 			{
 				case ENET_EVENT_TYPE_CONNECT:
@@ -109,8 +114,7 @@ int main(int argc, char *argv[])
 		}
 		// Sleep a bit so we don't consume 100% CPU
 		Sleep(1);
-	}
-	while (!stop && check >= 0);
+	} while (!stop && check >= 0);
 
 	// Shut down server
 	stop_server(&server);

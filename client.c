@@ -73,6 +73,7 @@ int main(int argc, char *argv[])
 				break;
 			case ENET_EVENT_TYPE_DISCONNECT:
 				printf("Lost connection with server\n");
+				check = -1;
 				break;
 			default:
 				break;
@@ -118,7 +119,28 @@ ENetHost *start_client(ENetPeer **peer)
 		fprintf(stderr, "Failed to scan for LAN server\n");
 		return NULL;
 	}
-	// TODO: wait for the reply, which will give us the server address
+	// Wait for the reply, which will give us the server address
+	int recvlen;
+	ENetAddress addr;
+	do
+	{
+		char buf[256];
+		ENetBuffer recvbuf;
+		recvbuf.data = buf;
+		recvbuf.dataLength = sizeof buf;
+		recvlen = enet_socket_receive(scanner, &addr, &recvbuf, 1);
+		if (recvlen > 0)
+		{
+			if (recvlen != sizeof(enet_uint16))
+			{
+				fprintf(stderr, "Unexpected reply from scan\n");
+				return NULL;
+			}
+			addr.port = *(enet_uint16 *)buf;
+			enet_address_get_host_ip(&addr, buf, sizeof buf);
+			printf("Found server at %s:%d\n", buf, addr.port);
+		}
+	} while (recvlen == 0);
 	if (enet_socket_shutdown(scanner, ENET_SOCKET_SHUTDOWN_READ_WRITE) != 0)
 	{
 		fprintf(stderr, "Failed to shutdown listen socket\n");
@@ -132,10 +154,6 @@ ENetHost *start_client(ENetPeer **peer)
 		fprintf(stderr, "Failed to open ENet host\n");
 		return NULL;
 	}
-	// TODO: find server on LAN
-	ENetAddress addr;
-	enet_address_set_host(&addr, "127.0.0.1");
-	addr.port = 34567;
 	char buf[256];
 	enet_address_get_host_ip(&addr, buf, sizeof buf);
 	*peer = enet_host_connect(host, &addr, 2, 0);
