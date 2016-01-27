@@ -102,6 +102,11 @@ ENetHost *start_client(ENetPeer **peer, const int timeout_seconds)
 
 	// Scan for server on LAN
 	ENetSocket scanner = enet_socket_create(ENET_SOCKET_TYPE_DATAGRAM);
+	if (scanner == ENET_SOCKET_NULL)
+	{
+		fprintf(stderr, "Failed to create socket\n");
+		return NULL;
+	}
 	if (enet_socket_set_option(scanner, ENET_SOCKOPT_BROADCAST, 1) != 0)
 	{
 		fprintf(stderr, "Failed to enable broadcast socket\n");
