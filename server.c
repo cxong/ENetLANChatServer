@@ -142,8 +142,7 @@ bool start_server(ENetLANServer *server)
 
 	ENetAddress addr;
 	addr.host = ENET_HOST_ANY;
-	// This selects random available port
-	addr.port = 0;
+	addr.port = ENET_PORT_ANY;
 	server->host = enet_host_create(&addr, MAX_CLIENTS, 2, 0, 0);
 	if (server->host == NULL)
 	{
