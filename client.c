@@ -127,6 +127,7 @@ ENetHost *start_client(ENetPeer **peer, const int timeout_seconds)
 	}
 	// Wait for the reply, which will give us the server address
 	ENetAddress addr;
+	ServerInfo sinfo;
 	bool found = false;
 	for (int i = 0; i < timeout_seconds; i++)
 	{
@@ -136,21 +137,21 @@ ENetHost *start_client(ENetPeer **peer, const int timeout_seconds)
 		ENET_SOCKETSET_ADD(set, scanner);
 		if (enet_socketset_select(scanner, &set, NULL, 0) > 0)
 		{
-			char buf[256];
 			ENetBuffer recvbuf;
-			recvbuf.data = buf;
-			recvbuf.dataLength = sizeof buf;
+			recvbuf.data = &sinfo;
+			recvbuf.dataLength = sizeof sinfo;
 			const int recvlen = enet_socket_receive(scanner, &addr, &recvbuf, 1);
 			if (recvlen > 0)
 			{
-				if (recvlen != sizeof(enet_uint16))
+				if (recvlen != sizeof(ServerInfo))
 				{
 					fprintf(stderr, "Unexpected reply from scan\n");
 					return NULL;
 				}
-				addr.port = *(enet_uint16 *)buf;
+				addr.port = sinfo.port;
+				char buf[256];
 				enet_address_get_host_ip(&addr, buf, sizeof buf);
-				printf("Found server at %s:%d\n", buf, addr.port);
+				printf("Found server '%s' at %s:%d\n", sinfo.hostname, buf, addr.port);
 				found = true;
 				break;
 			}

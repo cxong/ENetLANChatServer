@@ -180,9 +180,16 @@ void listen_for_clients(ENetLANServer *server)
 	enet_address_get_host_ip(&recvaddr, addrbuf, sizeof addrbuf);
 	printf("Listen port: received (%d) from %s:%d\n",
 		*(char *)recvbuf.data, addrbuf, recvaddr.port);
-	// Reply to scanner client with the port of the server host
-	recvbuf.data = &server->host->address.port;
-	recvbuf.dataLength = sizeof server->host->address.port;
+	// Reply to scanner client with our info
+	ServerInfo sinfo;
+	if (enet_address_get_host(&server->host->address, sinfo.hostname, sizeof sinfo.hostname) != 0)
+	{
+		fprintf(stderr, "Failed to get hostname\n");
+		return;
+	}
+	sinfo.port = server->host->address.port;
+	recvbuf.data = &sinfo;
+	recvbuf.dataLength = sizeof sinfo;
 	if (enet_socket_send(server->listen, &recvaddr, &recvbuf, 1) != (int)recvbuf.dataLength)
 	{
 		fprintf(stderr, "Failed to reply to scanner\n");
